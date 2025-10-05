@@ -267,7 +267,7 @@ async function searchImages(keyword) {
     }
 }
 
-// 渲染图片列表（支持懒加载和文件大小提示）
+// 渲染图片列表（直接加载所有图片）
 function renderImages(images) {
     let html = '<div class="image-container">';
     images.forEach(imagePath => {
@@ -279,19 +279,15 @@ function renderImages(images) {
         // 对文件名进行编码用于下载
         const encodedFileName = encodeURIComponent(fileName);
         
-        // 判断是否为大文件（这里简单地以文件名长度或特定后缀判断，实际可以根据需要调整）
+        // 判断是否为大文件
         const isLargeFile = fileName.length > 20 || fileName.includes('_large') || fileName.includes('_hq');
         
         html += `
-            <div class="image-item loading">
-                <div class="loading-placeholder"></div>
-                <img src="" 
-                     data-src="${encodedImagePath}" 
+            <div class="image-item">
+                <img src="${encodedImagePath}" 
                      alt="${displayName}" 
                      data-url="${encodedImagePath}"
-                     data-filename="${encodedFileName}"
-                     style="display:none;"
-                     onload="this.parentNode.classList.remove('loading'); this.style.display='block'; this.previousElementSibling.style.display='none';">
+                     data-filename="${encodedFileName}">
                 ${isLargeFile ? '<p style="color: red; font-size: 12px; text-align: center; margin: 2px 0;">文件较大加载较慢</p>' : ''}
                 <div class="image-name">${displayName}</div>
             </div>
@@ -301,8 +297,8 @@ function renderImages(images) {
     
     imageDisplay.innerHTML = html;
     
-    // 启动懒加载
-    setupLazyLoading();
+    // 移除懒加载调用
+    // setupLazyLoading();
     
     // 为所有图片添加触摸事件
     document.querySelectorAll('.image-item img').forEach(img => {
@@ -310,40 +306,7 @@ function renderImages(images) {
     });
 }
 
-// 设置懒加载
-function setupLazyLoading() {
-    const imageItems = document.querySelectorAll('.image-item');
-    const imageObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const img = entry.target.querySelector('img');
-                if (img && img.dataset.src) {
-                    // 添加错误处理，防止加载失败导致问题
-                    img.onerror = function() {
-                        console.error('图片加载失败:', this.dataset.src);
-                        // 显示加载失败的占位符
-                        const placeholder = this.previousElementSibling;
-                        if (placeholder) {
-                            placeholder.innerHTML = '❌';
-                        }
-                        this.parentNode.classList.remove('loading');
-                    };
-                    
-                    // 正常加载图片
-                    img.src = img.dataset.src;
-                    delete img.dataset.src;
-                    observer.unobserve(entry.target);
-                }
-            }
-        });
-    }, {
-        rootMargin: '50px 0px' // 提前50px开始加载
-    });
 
-    imageItems.forEach(item => {
-        imageObserver.observe(item);
-    });
-}
 
 // 图片触摸处理类
 class ImageTouchHandler {
