@@ -73,12 +73,19 @@ async function loadFolderList() {
         // 清空现有选项
         folderSelect.innerHTML = '<option value="">请选择...</option>';
         
-        // 提取所有主文件夹名称
+        // 提取所有主文件夹名称，同时处理有无"卡图"文件夹的情况
         const folders = new Set();
         imagesData.forEach(imagePath => {
             const parts = imagePath.split('/');
             if (parts.length > 1) {
-                folders.add(parts[1]); // 第二个部分是主文件夹名
+                // 检查是否存在"卡图"文件夹
+                if (parts[1] === '卡图' && parts.length > 2) {
+                    // 有"卡图"文件夹，从第三部分开始处理
+                    folders.add(parts[2]);
+                } else if (parts[1] !== '卡图') {
+                    // 没有"卡图"文件夹，从第二部分开始处理
+                    folders.add(parts[1]);
+                }
             }
         });
         
@@ -105,10 +112,19 @@ function handleFolderSelection(folder) {
     fetch('data/newimages2.json')
         .then(response => response.json())
         .then(imagesData => {
-            // 获取该文件夹下的所有路径
+            // 获取该文件夹下的所有路径，处理有无"卡图"文件夹的情况
             const folderPaths = imagesData.filter(imagePath => {
                 const parts = imagePath.split('/');
-                return parts.length > 1 && parts[1] === folder;
+                if (parts.length > 1) {
+                    if (parts[1] === '卡图' && parts.length > 2) {
+                        // 有"卡图"文件夹
+                        return parts[2] === folder;
+                    } else if (parts[1] !== '卡图') {
+                        // 没有"卡图"文件夹
+                        return parts[1] === folder;
+                    }
+                }
+                return false;
             });
             
             // 分析文件夹结构
@@ -117,12 +133,24 @@ function handleFolderSelection(folder) {
             
             folderPaths.forEach(imagePath => {
                 const parts = imagePath.split('/');
-                if (parts.length === 3) {
-                    // 直接在主文件夹下的图片
-                    directImages.push(imagePath);
-                } else if (parts.length > 3) {
-                    // 子文件夹
-                    subfolders.add(parts[2]);
+                if (parts[1] === '卡图' && parts.length > 2) {
+                    // 有"卡图"文件夹的情况
+                    if (parts.length === 4) {
+                        // 直接在主文件夹下的图片 (卡图/主文件夹/图片)
+                        directImages.push(imagePath);
+                    } else if (parts.length > 4) {
+                        // 子文件夹 (卡图/主文件夹/子文件夹/...)
+                        subfolders.add(parts[3]);
+                    }
+                } else if (parts[1] !== '卡图' && parts.length > 1) {
+                    // 没有"卡图"文件夹的情况
+                    if (parts.length === 3) {
+                        // 直接在主文件夹下的图片 (主文件夹/图片)
+                        directImages.push(imagePath);
+                    } else if (parts.length > 3) {
+                        // 子文件夹 (主文件夹/子文件夹/...)
+                        subfolders.add(parts[2]);
+                    }
                 }
             });
             
@@ -185,10 +213,17 @@ async function displayDirectImages(folder) {
         }
         const imagesData = await response.json();
         
-        // 筛选主文件夹中的直接图片
+        // 筛选主文件夹中的直接图片，处理有无"卡图"文件夹的情况
         const filteredImages = imagesData.filter(imagePath => {
             const parts = imagePath.split('/');
-            return parts.length === 3 && parts[1] === folder;
+            if (parts[1] === '卡图' && parts.length > 2) {
+                // 有"卡图"文件夹 (卡图/主文件夹/图片)
+                return parts.length === 4 && parts[2] === folder;
+            } else if (parts[1] !== '卡图' && parts.length > 1) {
+                // 没有"卡图"文件夹 (主文件夹/图片)
+                return parts.length === 3 && parts[1] === folder;
+            }
+            return false;
         });
         
         if (filteredImages.length === 0) {
@@ -215,10 +250,17 @@ async function displayImages(folder, subfolder) {
         }
         const imagesData = await response.json();
         
-        // 筛选指定文件夹中的图片
+        // 筛选指定文件夹中的图片，处理有无"卡图"文件夹的情况
         const filteredImages = imagesData.filter(imagePath => {
             const parts = imagePath.split('/');
-            return parts.length > 2 && parts[1] === folder && parts[2] === subfolder;
+            if (parts[1] === '卡图' && parts.length > 3) {
+                // 有"卡图"文件夹 (卡图/主文件夹/子文件夹/...)
+                return parts[2] === folder && parts[3] === subfolder;
+            } else if (parts[1] !== '卡图' && parts.length > 2) {
+                // 没有"卡图"文件夹 (主文件夹/子文件夹/...)
+                return parts[1] === folder && parts[2] === subfolder;
+            }
+            return false;
         });
         
         if (filteredImages.length === 0) {
@@ -249,9 +291,13 @@ async function searchImages(keyword) {
         const searchKeyword = keyword.toLowerCase();
         
         imagesData.forEach(imagePath => {
-            const fileName = imagePath.split('/').pop().toLowerCase();
-            if (fileName.includes(searchKeyword)) {
-                searchResults.push(imagePath);
+            const parts = imagePath.split('/');
+            // 搜索所有图片，无论是否有"卡图"文件夹
+            if (parts.length > 1) {
+                const fileName = imagePath.split('/').pop().toLowerCase();
+                if (fileName.includes(searchKeyword)) {
+                    searchResults.push(imagePath);
+                }
             }
         });
         
@@ -267,7 +313,7 @@ async function searchImages(keyword) {
     }
 }
 
-// 渲染图片列表（支持懒加载和文件大小提示）
+// 渲染图片列表（移除懒加载）
 function renderImages(images) {
     let html = '<div class="image-container">';
     images.forEach(imagePath => {
@@ -283,15 +329,11 @@ function renderImages(images) {
         const isLargeFile = fileName.length > 20 || fileName.includes('_large') || fileName.includes('_hq');
         
         html += `
-            <div class="image-item loading">
-                <div class="loading-placeholder"></div>
-                <img src="" 
-                     data-src="${encodedImagePath}" 
+            <div class="image-item">
+                <img src="${encodedImagePath}" 
                      alt="${displayName}" 
                      data-url="${encodedImagePath}"
-                     data-filename="${encodedFileName}"
-                     style="display:none;"
-                     onload="this.parentNode.classList.remove('loading'); this.style.display='block'; this.previousElementSibling.style.display='none';">
+                     data-filename="${encodedFileName}">
                 ${isLargeFile ? '<p style="color: red; font-size: 12px; text-align: center; margin: 2px 0;">文件较大加载较慢</p>' : ''}
                 <div class="image-name">${displayName}</div>
             </div>
@@ -301,35 +343,9 @@ function renderImages(images) {
     
     imageDisplay.innerHTML = html;
     
-    // 启动懒加载
-    setupLazyLoading();
-    
     // 为所有图片添加触摸事件
     document.querySelectorAll('.image-item img').forEach(img => {
         new ImageTouchHandler(img);
-    });
-}
-
-// 设置懒加载
-function setupLazyLoading() {
-    const imageItems = document.querySelectorAll('.image-item');
-    const imageObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const img = entry.target.querySelector('img');
-                if (img && img.dataset.src) {
-                    img.src = img.dataset.src;
-                    delete img.dataset.src;
-                    observer.unobserve(entry.target);
-                }
-            }
-        });
-    }, {
-        rootMargin: '50px 0px' // 提前50px开始加载
-    });
-
-    imageItems.forEach(item => {
-        imageObserver.observe(item);
     });
 }
 
