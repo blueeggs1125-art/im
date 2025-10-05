@@ -318,6 +318,18 @@ function setupLazyLoading() {
             if (entry.isIntersecting) {
                 const img = entry.target.querySelector('img');
                 if (img && img.dataset.src) {
+                    // 添加错误处理，防止加载失败导致问题
+                    img.onerror = function() {
+                        console.error('图片加载失败:', this.dataset.src);
+                        // 显示加载失败的占位符
+                        const placeholder = this.previousElementSibling;
+                        if (placeholder) {
+                            placeholder.innerHTML = '❌';
+                        }
+                        this.parentNode.classList.remove('loading');
+                    };
+                    
+                    // 正常加载图片
                     img.src = img.dataset.src;
                     delete img.dataset.src;
                     observer.unobserve(entry.target);
