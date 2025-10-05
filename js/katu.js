@@ -1,27 +1,6 @@
-// 修改 encodeImagePath 函数
 function encodeImagePath(path) {
-    // 确保路径以 '/' 开头，适配 GitHub Pages
-    if (!path.startsWith('/')) {
-        path = '/' + path;
-    }
     return path.split('/').map(part => encodeURIComponent(part)).join('/');
 }
-
-// 在文件开头添加基础路径检测
-function getBasePath() {
-    // GitHub Pages 项目页面路径处理
-    if (window.location.hostname.includes('github.io')) {
-        // 获取仓库名作为基础路径
-        const pathname = window.location.pathname;
-        const pathParts = pathname.split('/').filter(part => part !== '');
-        if (pathParts.length > 0) {
-            return '/' + pathParts[0];
-        }
-    }
-    return '';
-}
-
-const basePath = getBasePath();
 
 const folderSelect = document.getElementById('folder-select');
 const subfolderGroup = document.getElementById('subfolder-group');
@@ -289,7 +268,47 @@ async function searchImages(keyword) {
 }
 
 // 渲染图片列表（支持懒加载和文件大小提示）
-
+function renderImages(images) {
+    let html = '<div class="image-container">';
+    images.forEach(imagePath => {
+        // 对整个路径进行编码以支持中文
+        const encodedImagePath = encodeImagePath(imagePath);
+        const fileName = imagePath.split('/').pop();
+        const displayName = fileName;
+        
+        // 对文件名进行编码用于下载
+        const encodedFileName = encodeURIComponent(fileName);
+        
+        // 判断是否为大文件（这里简单地以文件名长度或特定后缀判断，实际可以根据需要调整）
+        const isLargeFile = fileName.length > 20 || fileName.includes('_large') || fileName.includes('_hq');
+        
+        html += `
+            <div class="image-item loading">
+                <div class="loading-placeholder"></div>
+                <img src="" 
+                     data-src="${encodedImagePath}" 
+                     alt="${displayName}" 
+                     data-url="${encodedImagePath}"
+                     data-filename="${encodedFileName}"
+                     style="display:none;"
+                     onload="this.parentNode.classList.remove('loading'); this.style.display='block'; this.previousElementSibling.style.display='none';">
+                ${isLargeFile ? '<p style="color: red; font-size: 12px; text-align: center; margin: 2px 0;">文件较大加载较慢</p>' : ''}
+                <div class="image-name">${displayName}</div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    imageDisplay.innerHTML = html;
+    
+    // 启动懒加载
+    setupLazyLoading();
+    
+    // 为所有图片添加触摸事件
+    document.querySelectorAll('.image-item img').forEach(img => {
+        new ImageTouchHandler(img);
+    });
+}
 
 // 设置懒加载
 function setupLazyLoading() {
